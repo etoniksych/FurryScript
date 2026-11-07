@@ -4,7 +4,7 @@ local UserInputService = game:GetService("UserInputService")
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
--- Закрываем предыдущую версию при повторном запуске.
+-- Удаляем предыдущую версию при повторном запуске.
 local env = getgenv and getgenv() or _G
 
 if env.VDMenuCleanup then
@@ -55,7 +55,36 @@ local function addHighlight(character)
         return
     end
 
-    if character:FindFirstChild("VDTestHighlight") then
+    local player = Players:GetPlayerFromCharacter(character)
+
+    if not player or player == localPlayer then
+        return
+    end
+
+    local teamName = player.Team and player.Team.Name
+    local color
+
+    if teamName == "Killer" then
+        -- Маньяк — красный.
+        color = Color3.fromRGB(255, 70, 70)
+    elseif teamName == "Survivors" then
+        -- Выжившие — синие.
+        color = Color3.fromRGB(70, 160, 255)
+    end
+
+    local existing = character:FindFirstChild("VDTestHighlight")
+
+    -- Игроков в других командах не подсвечиваем.
+    if not color then
+        if existing then
+            existing:Destroy()
+        end
+        return
+    end
+
+    -- Обновляем цвет, если у игрока сменилась команда.
+    if existing then
+        existing.FillColor = color
         return
     end
 
@@ -63,7 +92,7 @@ local function addHighlight(character)
         Name = "VDTestHighlight",
         Adornee = character,
         DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
-        FillColor = Color3.fromRGB(255, 70, 70),
+        FillColor = color,
         OutlineColor = Color3.fromRGB(255, 255, 255),
         FillTransparency = 0.5,
         OutlineTransparency = 0
@@ -84,8 +113,15 @@ local function setupPlayer(player)
     connect(player.CharacterAdded, function(character)
         addHighlight(character)
     end)
+
+    connect(player:GetPropertyChangedSignal("Team"), function()
+        if player.Character then
+            addHighlight(player.Character)
+        end
+    end)
 end
 
+-- Главное окно.
 local gui = create("ScreenGui", {
     Name = "VDTestMenu",
     ResetOnSpawn = false
@@ -101,6 +137,7 @@ local main = create("Frame", {
 }, gui)
 round(main, 12)
 
+-- Левая панель.
 local sidebar = create("Frame", {
     Size = UDim2.new(0, 190, 1, 0),
     BackgroundColor3 = Color3.fromRGB(35, 36, 43),
@@ -141,7 +178,7 @@ local espTab = create("TextButton", {
 }, sidebar)
 round(espTab, 8)
 
--- Профиль в нижнем левом углу.
+-- Профиль внизу слева.
 local profileButton = create("TextButton", {
     Size = UDim2.new(1, -20, 0, 64),
     Position = UDim2.new(0, 10, 1, -74),
@@ -197,6 +234,7 @@ task.spawn(function()
     end
 end)
 
+-- Правая часть меню.
 local content = create("Frame", {
     Size = UDim2.new(1, -190, 1, 0),
     Position = UDim2.fromOffset(190, 0),
@@ -230,6 +268,7 @@ local closeButton = create("TextButton", {
     Font = Enum.Font.Gotham
 }, header)
 
+-- Страница ESP.
 local espPage = create("Frame", {
     Size = UDim2.new(1, 0, 1, -60),
     Position = UDim2.fromOffset(0, 60),
@@ -248,19 +287,20 @@ create("TextLabel", {
 }, espPage)
 
 create("TextLabel", {
-    Size = UDim2.new(1, -48, 0, 24),
+    Size = UDim2.new(1, -48, 0, 40),
     Position = UDim2.fromOffset(24, 44),
     BackgroundTransparency = 1,
-    Text = "Показывать других игроков сквозь стены",
+    Text = "Маньяк — красный, выжившие — синие",
     TextColor3 = Color3.fromRGB(165, 168, 180),
     TextSize = 12,
     Font = Enum.Font.Gotham,
-    TextXAlignment = Enum.TextXAlignment.Left
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextWrapped = true
 }, espPage)
 
 local espButton = create("TextButton", {
     Size = UDim2.fromOffset(180, 42),
-    Position = UDim2.fromOffset(24, 85),
+    Position = UDim2.fromOffset(24, 95),
     BackgroundColor3 = Color3.fromRGB(65, 65, 75),
     Text = "ESP: ВЫКЛ",
     TextColor3 = Color3.fromRGB(255, 255, 255),
@@ -269,6 +309,7 @@ local espButton = create("TextButton", {
 }, espPage)
 round(espButton, 8)
 
+-- Страница профиля.
 local profilePage = create("Frame", {
     Size = UDim2.new(1, 0, 1, -60),
     Position = UDim2.fromOffset(0, 60),
@@ -324,6 +365,7 @@ create("TextLabel", {
 
 local function showPage(name)
     local isEsp = name == "ESP"
+
     espPage.Visible = isEsp
     profilePage.Visible = not isEsp
     heading.Text = isEsp and "ESP" or "Профиль"
@@ -340,6 +382,7 @@ connect(profileButton.MouseButton1Click, function()
     showPage("Profile")
 end)
 
+-- Крестик только скрывает меню.
 connect(closeButton.MouseButton1Click, function()
     waitingForKey = false
     bindButton.Text = "Клавиша: " .. menuKey.Name
@@ -377,6 +420,7 @@ connect(UserInputService.InputBegan, function(input, gameProcessed)
     end
 end)
 
+-- Включение и выключение ESP.
 connect(espButton.MouseButton1Click, function()
     espEnabled = not espEnabled
 
